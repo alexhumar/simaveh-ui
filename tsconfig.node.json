@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "orval.config.ts", "openapi/transform.ts"]
+  "include": ["vite.config.ts", "orval.config.ts", "openapi/transform.ts", "scripts/gen-entity-metadata.ts"]
 }

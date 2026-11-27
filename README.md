@@ -18,11 +18,11 @@ asi no hay problemas de CORS ni con el certificado autofirmado de ASP.NET.
 
 ## Contrato OpenAPI
 
-| Archivo / script | Que hace |
-| --- | --- |
-| `openapi/simaveh.json` | Contrato de la API, versionado en el repo. |
-| `npm run api:sync` | Lo vuelve a descargar desde la API (`OPENAPI_URL`, por defecto `https://localhost:44340/openapi.json`). |
-| `npm run api:gen` | Genera `src/api/generated/` con orval (se ejecuta solo antes de `dev` y `build`). |
+| Archivo / script       | Que hace                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openapi/simaveh.json` | Contrato de la API, versionado en el repo.                                                                                                                                                                    |
+| `npm run api:sync`     | Lo vuelve a descargar desde la API (`OPENAPI_URL`, por defecto `https://localhost:44340/openapi.json`).                                                                                                       |
+| `npm run api:gen`      | Genera `src/api/generated/`: cliente con orval y metadata de entidades con `scripts/gen-entity-metadata.ts`. Se ejecuta solo antes de `dev` y `build`.                                                        |
 | `openapi/transform.ts` | Ajusta el contrato antes de generar: descarta endpoints de propiedades sueltas/`$value`/`$count`, acorta nombres (`SiMaVeh.Domain.Models.Marca` -> `Marca`), entrecomilla claves de texto (`Monedas('ARS')`). |
 
 Flujo cuando cambia la API: `npm run api:sync && npm run api:gen && npm run typecheck`; los errores de TypeScript marcan lo que hay que adaptar.
@@ -38,15 +38,19 @@ Flujo cuando cambia la API: `npm run api:sync && npm run api:gen && npm run type
 
 ```
 src/
-  api/http.ts        instancia axios (mutator de orval, serializa parametros OData)
-  api/generated/     cliente generado (endpoints/ por entity set, model/ con los tipos)
-  app/               providers (Mantine, React Query) y router
-  components/        layout y componentes compartidos
-  features/<set>/    paginas por recurso (lista, detalle, formulario)
-  lib/odata.ts       helpers: filtros, invalidacion de cache, mensajes de error
+  api/http.ts            instancia axios (mutator de orval, serializa parametros OData)
+  api/references.ts      operaciones $ref (asignar/agregar/quitar relaciones)
+  api/generated/         cliente y metadata generados (no editar)
+  app/                   providers y router
+  components/            layout y componentes compartidos
+  entities/config.ts     textos, menu y presentacion de cada entidad (a mano)
+  entities/registry.ts   metadata + config y helpers
+  features/entities/     CRUD generico: lista, detalle, formulario y relaciones
+  lib/odata.ts           helpers: filtros, invalidacion de cache, mensajes de error
 ```
 
-`features/marcas/` es la plantilla de referencia para el resto de los recursos.
+Las 33 entidades usan las mismas pantallas, armadas desde la metadata generada del contrato (campos, tipos y relaciones asignables).
+Para cambiar como se muestra una entidad, editar `src/entities/config.ts`. Mas detalle en [AGENTS.md](AGENTS.md).
 
 ## Scripts
 

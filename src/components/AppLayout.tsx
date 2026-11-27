@@ -1,43 +1,64 @@
-import { AppShell, Burger, Group, NavLink, Text, Title } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, ScrollArea, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { NavLink as RouterNavLink, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useGetVersion } from '../api/generated/endpoints/version/version';
-
-/** Entradas del menu. Se agregan a medida que se implementa cada feature. */
-const NAV_ITEMS = [
-  { to: '/', label: 'Inicio', end: true },
-  { to: '/marcas', label: 'Marcas', end: false },
-];
+import { MENU } from '../entities/registry';
+import { ColorSchemeToggle } from './ColorSchemeToggle';
 
 export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
   const { data: version } = useGetVersion();
+  const { pathname } = useLocation();
+  const section = pathname.split('/')[1] ?? '';
 
   return (
     <AppShell
       header={{ height: 56 }}
-      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      navbar={{ width: 270, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Abrir menu" />
-            <Title order={3}>SiMaVeh</Title>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Abrir menú" />
+            <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }}>
+              <Title order={3}>SiMaVeh</Title>
+            </Link>
           </Group>
-          <Text size="xs" c="dimmed">
-            UI v{__APP_VERSION__}
-            {version && ` · API v${version.version}`}
-          </Text>
+          <Group gap="sm">
+            <Text size="xs" c="dimmed" visibleFrom="xs">
+              UI v{__APP_VERSION__}
+              {version && ` · API v${version.version}`}
+            </Text>
+            <ColorSchemeToggle />
+          </Group>
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="xs">
-        {NAV_ITEMS.map((item) => (
-          <RouterNavLink key={item.to} to={item.to} end={item.end} onClick={close}>
-            {({ isActive }) => <NavLink component="span" label={item.label} active={isActive} />}
-          </RouterNavLink>
-        ))}
+      <AppShell.Navbar>
+        <AppShell.Section grow component={ScrollArea} p="xs">
+          <NavLink component={Link} to="/" label="Inicio" active={section === ''} onClick={close} />
+          {MENU.map(({ group, entities }) => (
+            <NavLink
+              key={group}
+              label={group}
+              fw={600}
+              defaultOpened={entities.some((e) => e.slug === section)}
+              childrenOffset="sm"
+            >
+              {entities.map((e) => (
+                <NavLink
+                  key={e.set}
+                  component={Link}
+                  to={`/${e.slug}`}
+                  label={e.plural}
+                  active={e.slug === section}
+                  onClick={close}
+                />
+              ))}
+            </NavLink>
+          ))}
+        </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main>

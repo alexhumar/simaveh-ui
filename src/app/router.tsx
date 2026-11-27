@@ -1,24 +1,37 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { AppLayout } from '../components/AppLayout';
 import { NotFound } from '../components/NotFound';
-import { InicioPage } from '../features/inicio/InicioPage';
-import { MarcaDetailPage } from '../features/marcas/MarcaDetailPage';
-import { MarcaFormPage } from '../features/marcas/MarcaFormPage';
-import { MarcasListPage } from '../features/marcas/MarcasListPage';
 
+/**
+ * Las pantallas de entidades son genericas: `/:slug` es el entity set en kebab-case
+ * (ej. `/categorias-marca`), resuelto con la metadata en `src/entities/registry.ts`.
+ * Se cargan en diferido para no inflar el bundle inicial.
+ */
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppLayout />,
     children: [
-      { index: true, element: <InicioPage /> },
+      { index: true, lazy: async () => ({ Component: (await import('../features/inicio/InicioPage')).InicioPage }) },
       {
-        path: 'marcas',
+        path: ':slug',
         children: [
-          { index: true, element: <MarcasListPage /> },
-          { path: 'nueva', element: <MarcaFormPage /> },
-          { path: ':id', element: <MarcaDetailPage /> },
-          { path: ':id/editar', element: <MarcaFormPage /> },
+          {
+            index: true,
+            lazy: async () => ({ Component: (await import('../features/entities/EntityListPage')).EntityListPage }),
+          },
+          {
+            path: 'nueva',
+            lazy: async () => ({ Component: (await import('../features/entities/EntityFormPage')).EntityFormPage }),
+          },
+          {
+            path: ':id',
+            lazy: async () => ({ Component: (await import('../features/entities/EntityDetailPage')).EntityDetailPage }),
+          },
+          {
+            path: ':id/editar',
+            lazy: async () => ({ Component: (await import('../features/entities/EntityFormPage')).EntityFormPage }),
+          },
         ],
       },
       { path: '*', element: <NotFound /> },

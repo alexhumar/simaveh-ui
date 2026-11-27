@@ -20,7 +20,7 @@ Idioma: la UI, los mensajes y los comentarios estan en **espanol**. Los nombres 
 | `npm run lint`      | oxlint                                                        |
 | `npm run format`    | Prettier                                                      |
 | `npm run api:sync`  | Descarga el contrato desde la API (requiere la API levantada) |
-| `npm run api:gen`   | Genera `src/api/generated/` con orval                         |
+| `npm run api:gen`   | Genera `src/api/generated/` (orval + metadata de entidades)   |
 
 **Para validar un cambio**: `npm run typecheck && npm run lint && npm run build`. Todavia no hay tests automatizados.
 
@@ -34,7 +34,16 @@ Es la regla mas importante del repo:
 - Cuando cambia la API: `npm run api:sync && npm run api:gen && npm run typecheck`, y corregir lo que marque TypeScript.
 - El spec pesa ~800 KB: para explorarlo usar `node -e` o grep (paths, `components.schemas`), no leerlo entero.
 
-Importar desde `src/api/generated/endpoints/<set>/<set>.ts` (hooks) y `src/api/generated/model` (tipos).
+`npm run api:gen` produce:
+
+| Archivo generado                             | Contenido                                                                                                                                                                  |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/api/generated/endpoints/<set>/<set>.ts` | Funciones y hooks de React Query por entity set (orval)                                                                                                                    |
+| `src/api/generated/model/`                   | Tipos de las entidades (orval)                                                                                                                                             |
+| `src/api/generated/entities.ts`              | `EntitySet`, `ENTITY_SETS` y `ENTITY_METADATA`: campos con tipo, clave, enums, navegaciones con sus sets destino y si se pueden asignar (`scripts/gen-entity-metadata.ts`) |
+| `src/api/generated/entity-api.ts`            | `ENTITY_API`: mapa set → funciones CRUD de orval (`list`, `get`, `create`, `update`, `remove`)                                                                             |
+
+`entities.ts` y `entity-api.ts` van separados para que el menu y las rutas no carguen todo el cliente.
 
 Nombres de los hooks generados:
 
@@ -52,7 +61,12 @@ Nombres de los hooks generados:
   - `invalidateEntitySet(queryClient, 'Marcas')`: llamarlo despues de cada mutacion.
   - `getApiErrorMessages(error)`: arma los mensajes para la UI (se muestran con `ApiErrorAlert`).
 - Claves de texto: `Monedas('ARS')`, `EquipamientosAirbags`, `UbicacionesPieza`. El transform ya genera la URL con comillas.
-- **Relaciones**: los bodies no tienen campos de clave foranea. Las navegaciones se asignan con los endpoints `$ref` (`POST/PUT /simaveh/<Set>({Id})/{navegacion}/$ref` con body `{"@odata.id": "<url de la entidad relacionada>"}`). Todavia no se confirmo si la API acepta `@odata.bind` al crear.
+- **Relaciones**: los bodies no tienen campos de clave foranea. El flujo, confirmado con el usuario, es crear la entidad (POST) y despues asignar cada relacion con los endpoints `$ref` (`src/api/references.ts`):
+  - Simples: `PUT .../{nav}/$ref`. No hay DELETE para las simples, asi que una relacion simple asignada no se puede vaciar.
+  - Colecciones: `POST .../{nav}/$ref` para agregar y `DELETE .../{nav}({IdRelacionado})/$ref` para quitar.
+  - El body es `{"@odata.id": "<url absoluta>"}`. La URL se arma con la raiz del servicio que informa la propia API (`@odata.context` de `GET /simaveh`), no con la del proxy.
+  - Que navegaciones se pueden asignar sale de los enums de los endpoints `$ref`; queda en `canSet`, `canAdd` y `canRemove` de la metadata.
+- **Tipos abstractos**: `Vehiculo` → Automoviles; `Persona` → Reparadores | Usuarios; `Recambio` → Repuestos | KitsRepuestos; `TargetMantenimiento` → Aceites | Fluidos | Piezas. Las entidades expandidas traen `@odata.type` con el tipo concreto (ver `setOfEntity`).
 - `$expand` usa el nombre de la propiedad de navegacion (`Categorias`), no el del entity set (`CategoriasMarca`).
 - **Discrepancia con el contrato**: el 400 de validacion llega como `{ "@odata.context": ..., "value": string[] }`, aunque el spec declara `string[]`. `getApiErrorMessages` acepta las dos formas.
 - Las entidades heredan con `allOf`: por ejemplo, `Automovil` es `Vehiculo & {...}`.
@@ -61,23 +75,45 @@ Nombres de los hooks generados:
 
 ```
 src/
-  api/http.ts        instancia axios usada por orval (mutator)
-  api/generated/     cliente generado (no editar)
-  app/               providers (Mantine, React Query) y router
-  components/        layout (AppLayout), QueryState (PageLoader, ApiErrorAlert), NotFound
-  features/<set>/    paginas por recurso
-  lib/odata.ts       helpers OData
+  api/http.ts            instancia axios usada por orval (mutator)
+  api/references.ts      operaciones $ref genericas y raiz del servicio
+  api/generated/         cliente y metadata generados (no editar)
+  app/                   providers (Mantine, Dates, React Query) y router
+  components/            layout (AppLayout), QueryState (PageLoader, ApiErrorAlert), NotFound
+  entities/types.ts      tipos de la metadata y de EntityApi
+  entities/config.ts     presentacion por entidad (a mano)
+  entities/registry.ts   une metadata + config; helpers de textos, claves, busqueda y formato
+  features/entities/     CRUD generico: lista, detalle, formulario, EntitySelect, RelationCollection, hooks
+  features/inicio/       pagina de inicio
+  lib/odata.ts           helpers OData
 ```
 
-- **Plantilla para nuevos recursos**: `src/features/marcas/`.
-  - Lista: busqueda con debounce, orden por columna, paginacion y filtros en la URL.
-  - Detalle: incluye navegaciones y un modal de confirmacion para eliminar.
-  - Formulario: alta y edicion en un solo componente, con validacion zod.
-- Al agregar un recurso:
-  1. Crear `src/features/<set-en-minusculas>/` siguiendo esa plantilla.
-  2. Registrar las rutas en `src/app/router.tsx` (`/<set>`, `/<set>/nueva`, `/<set>/:id`, `/<set>/:id/editar`).
-  3. Agregar la entrada en `NAV_ITEMS` de `src/components/AppLayout.tsx`.
-- Despues de una mutacion: llamar a `invalidateEntitySet` y mostrar una notificacion (`@mantine/notifications`).
+**Las pantallas son genericas y se arman desde la metadata.** No hay una feature por entidad.
+
+- Rutas: `/:slug`, `/:slug/nueva`, `/:slug/:id` y `/:slug/:id/editar`. El slug es el entity set en kebab-case (`CategoriasMarca` → `/categorias-marca`). Todas se cargan en diferido.
+- Menu: se arma con `MENU` (registry), agrupado segun `group` de `config.ts`.
+- `src/entities/config.ts` es lo unico que se escribe a mano por entidad:
+  - `singular`, `plural`, `femenino` (para "Nuevo"/"Nueva") y `group`.
+  - Opcionales: `listColumns`, `searchFields` y `defaultSort`.
+  - `TYPE_DISPLAY_FIELDS`: como se muestra una entidad cuando aparece como relacion o en un selector.
+  - `FIELD_LABELS`: etiquetas que no salen bien al separar el PascalCase. Las demas se humanizan con tildes (diccionario `WORDS` en registry).
+  - `satisfies Record<EntitySet, EntityConfig>` hace que falle la compilacion si aparece un entity set nuevo sin configurar.
+- Lista: busqueda (`contains` sobre los campos de texto, o `Id eq n` si el texto es numerico), orden por columna, paginacion en la URL y `$expand` de las relaciones simples.
+- Detalle:
+  - Campos y relaciones simples, con link al detalle de la relacionada.
+  - Una tarjeta por coleccion, paginada, con agregar y quitar segun `canAdd` y `canRemove`.
+- Formulario:
+  - El schema zod se arma desde los campos: `nullable` → opcional; `min`/`max`; enums.
+  - Inputs por tipo: texto, numero, switch, select de enum y `DateTimePicker`. Las fechas se mandan en ISO con zona horaria.
+  - La clave de texto solo se carga en el alta.
+  - Las relaciones simples asignables se eligen con `EntitySelect` (busqueda remota; en tipos abstractos se elige primero el set).
+  - `useSaveEntity` hace POST o PATCH y despues los `PUT $ref` de las relaciones que cambiaron. Si falla un `$ref` despues de un alta, navega a la edicion del registro creado y avisa que relacion falto.
+- Personalizar una entidad puntual:
+  - Primero probar con `config.ts`.
+  - Si no alcanza, crear una pagina propia en `src/features/<entidad>/` y registrar una ruta especifica (`/marcas/...`) antes de `:slug` en `src/app/router.tsx`.
+  - Reutilizar los hooks de `features/entities/hooks.ts` o los de orval.
+- Hooks genericos (`useEntityList`, `useEntity`, `useNavigationCollection`, `useSaveEntity`, `useDeleteEntity`, `useCollectionReference`): usan `ENTITY_API` (funciones de orval) con query keys en el formato de orval (la URL). Asi `invalidateEntitySet` invalida tanto lo generico como lo generado.
+- Despues de una mutacion: llamar a `invalidateEntitySet` (los hooks genericos ya lo hacen) y mostrar una notificacion (`@mantine/notifications`).
 - Errores y carga: usar `PageLoader` y `ApiErrorAlert`, no reinventarlos.
 - UI con componentes de Mantine. Evitar CSS propio salvo que haga falta.
 - Prettier: comillas simples, ancho 120.
@@ -98,7 +134,7 @@ src/
 
 ## Versionado
 
-- Se usa [Semantic Versioning](https://semver.org/lang/es/) en `package.json`. Version actual: **0.1.0**, en desarrollo inicial (`0.y.z`).
+- Se usa [Semantic Versioning](https://semver.org/lang/es/) en `package.json`. Version actual: **0.3.0** (CRUD generico de las 33 entidades + modo claro/oscuro), en desarrollo inicial (`0.y.z`).
   - MINOR: funcionalidad o recurso nuevo.
   - PATCH: correcciones.
   - `1.0.0`: cuando el front se considere estable.
@@ -107,6 +143,6 @@ src/
 
 ## Pendientes conocidos
 
-- Confirmar como se asignan las relaciones al crear entidades: `@odata.bind` o `$ref` posterior. Bloquea Automoviles y Mantenimientos.
-- Code-splitting por ruta: el bundle supera los 500 KB y el build lo advierte.
+- Las escrituras (alta, edicion, baja, `$ref`) del CRUD generico todavia no se probaron contra la API real. Las lecturas de las 33 entidades si.
+- Bundle principal de ~630 KB (Mantine, React, router). Las pantallas ya se cargan en diferido; falta separar dependencias en chunks propios si se quiere eliminar el aviso del build.
 - Tests: todavia no hay. Si se agregan, usar Vitest y Testing Library.

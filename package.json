@@ -1,7 +1,7 @@
 {
   "name": "simaveh-ui",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "api:sync": "node scripts/sync-openapi.mjs",
-    "api:gen": "orval",
+    "api:gen": "orval && node scripts/gen-entity-metadata.ts",
     "predev": "npm run api:gen",
     "prebuild": "npm run api:gen",
     "typecheck": "tsc -b",
