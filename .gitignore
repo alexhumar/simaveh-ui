@@ -1,26 +1,60 @@
-# Angular specific
-/dist/
-/out-tsc/
-/tmp/
-/coverage/
-/e2e/test-output/
-/.angular/
-.angular/
-
-# Node modules and dependency files
-/node_modules/
-
-# Environment files
-/.env
-
-# Angular CLI and build artefacts
-/.angular-cli.json
-/.ng/
-
-# TypeScript cache
-*.tsbuildinfo
-
 # Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# Dependencias
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Caches de herramientas
+.vite/
+.cache/
+.npm/
+.eslintcache
+.prettiercache
+
+# Tests y cobertura (para cuando se agreguen)
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Entorno y secretos (solo se versiona el ejemplo)
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.pfx
+*.crt
+
+# Agentes de IA: configuracion personal/local (AGENTS.md y CLAUDE.md si se versionan)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
