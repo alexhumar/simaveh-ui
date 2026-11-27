@@ -1,0 +1,5 @@
+dist
+node_modules
+openapi/simaveh.json
+src/api/generated
+package-lock.json
